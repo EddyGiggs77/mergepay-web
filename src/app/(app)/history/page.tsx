@@ -69,10 +69,10 @@ export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [restored, setRestored] = useState(false);
 
-  const [selectedAsset, setSelectedAsset] = useState<AssetFilter>((searchParams.get("asset") as AssetFilter) || "ALL");
+  const [selectedAsset, setSelectedAsset] = useState<AssetFilter>((searchParams.get("asset") as AssetFilter) || (searchParams.get("assetCode") as AssetFilter) || "ALL");
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>((searchParams.get("status") as StatusFilter) || "ALL");
-  const [startDate, setStartDate] = useState(searchParams.get("start") || "");
-  const [endDate, setEndDate] = useState(searchParams.get("end") || "");
+  const [startDate, setStartDate] = useState(searchParams.get("start") || searchParams.get("fromDate") || "");
+  const [endDate, setEndDate] = useState(searchParams.get("end") || searchParams.get("toDate") || "");
 
   useEffect(() => {
     const stored = readHistoryView();
@@ -88,14 +88,29 @@ export default function HistoryPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
-    if (selectedAsset !== "ALL") params.set("asset", selectedAsset);
-    else params.delete("asset");
+    if (selectedAsset !== "ALL") {
+      params.set("asset", selectedAsset);
+      params.set("assetCode", selectedAsset);
+    } else {
+      params.delete("asset");
+      params.delete("assetCode");
+    }
     if (selectedStatus !== "ALL") params.set("status", selectedStatus);
     else params.delete("status");
-    if (startDate) params.set("start", startDate);
-    else params.delete("start");
-    if (endDate) params.set("end", endDate);
-    else params.delete("end");
+    if (startDate) {
+      params.set("start", startDate);
+      params.set("fromDate", startDate);
+    } else {
+      params.delete("start");
+      params.delete("fromDate");
+    }
+    if (endDate) {
+      params.set("end", endDate);
+      params.set("toDate", endDate);
+    } else {
+      params.delete("end");
+      params.delete("toDate");
+    }
 
     const queryStr = params.toString();
     const url = queryStr ? `/history?${queryStr}` : "/history";
@@ -169,6 +184,21 @@ export default function HistoryPage() {
     setEndDate("");
   }
 
+  function handleHistoryFilterBarChange(newFilters: HistoryFilters) {
+    setFilters(newFilters);
+    if (newFilters.assetCode) {
+      setSelectedAsset(newFilters.assetCode as AssetFilter);
+    } else if (newFilters.assetCode === undefined && filters.assetCode && !newFilters.assetCode) {
+      setSelectedAsset("ALL");
+    }
+    if (newFilters.fromDate !== undefined) {
+      setStartDate(newFilters.fromDate);
+    }
+    if (newFilters.toDate !== undefined) {
+      setEndDate(newFilters.toDate);
+    }
+  }
+
   return (
     <ErrorBoundary onReset={() => void refetch()}>
       <PageHeader
@@ -209,7 +239,15 @@ export default function HistoryPage() {
 
       {hasData && (
         <div className="space-y-4 mb-6">
-          <HistoryFilterBar value={filters} onChange={setFilters} />
+          <HistoryFilterBar
+            value={{
+              ...filters,
+              assetCode: selectedAsset !== "ALL" ? selectedAsset : undefined,
+              fromDate: startDate || undefined,
+              toDate: endDate || undefined,
+            }}
+            onChange={handleHistoryFilterBarChange}
+          />
           <TransactionFilter
             selectedAsset={selectedAsset}
             onAssetChange={setSelectedAsset}
