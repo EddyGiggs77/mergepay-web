@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { WifiOff } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
 export interface OfflineBannerProps {
@@ -12,34 +13,40 @@ export interface OfflineBannerProps {
 /**
  * Global offline detection banner adhering to the Mergepay neobrutalist design system.
  * Appears automatically when navigator.onLine is false or when the browser
- * fires an 'offline' window event, and dismisses smoothly on reconnection.
+ * fires an 'offline' window event, and dismisses smoothly on reconnection
+ * while automatically refetching stale queries.
  */
 export function OfflineBanner({ className }: OfflineBannerProps) {
-  // Start "online" so the first client render of the SSR HTML is identical;
-  // reading `navigator.onLine` synchronously in the initializer instead makes
-  // the constructor diverge from the server (Node ≥21 exposes a bare global
-  // `navigator` whose `onLine` is undefined, i.e. falsy "offline"), which
-  // throws React hydration error #418/#423 on every page and replaces the
-  // whole document with client content.
   const [isOnline, setIsOnline] = useState(true);
+  let queryClient: ReturnType<typeof useQueryClient> | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    queryClient = useQueryClient();
+  } catch {
+    queryClient = null;
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (queryClient) {
+        void queryClient.refetchQueries();
+      }
+    };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // Initial check
     setIsOnline(navigator.onLine);
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
+  }, [queryClient]);
 
   return (
     <AnimatePresence>
